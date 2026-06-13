@@ -1,0 +1,137 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.44.1.10279",
+      "templateHash": "6333572392334266002"
+    }
+  },
+  "parameters": {
+    "namePrefix": {
+      "type": "string"
+    },
+    "env": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "caeId": {
+      "type": "string"
+    },
+    "acrLoginServer": {
+      "type": "string"
+    },
+    "keyVaultName": {
+      "type": "string"
+    },
+    "ingressPublic": {
+      "type": "bool"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-03-01",
+      "name": "[format('{0}-{1}-prod2', parameters('namePrefix'), parameters('env'))]",
+      "location": "[parameters('location')]",
+      "tags": {
+        "project": "INT101",
+        "env": "[parameters('env')]",
+        "owner": "DNAI",
+        "managedBy": "bicep",
+        "app": "prod2"
+      },
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "managedEnvironmentId": "[parameters('caeId')]",
+        "configuration": {
+          "ingress": {
+            "external": "[parameters('ingressPublic')]",
+            "targetPort": 8000,
+            "transport": "auto"
+          },
+          "registries": [
+            {
+              "server": "[parameters('acrLoginServer')]",
+              "identity": "system"
+            }
+          ],
+          "secrets": [
+            {
+              "name": "database-url",
+              "keyVaultUrl": "[format('https://{0}.vault.azure.net/secrets/prod2-database-url', parameters('keyVaultName'))]",
+              "identity": "system"
+            },
+            {
+              "name": "session-secret",
+              "keyVaultUrl": "[format('https://{0}.vault.azure.net/secrets/prod2-session-secret', parameters('keyVaultName'))]",
+              "identity": "system"
+            },
+            {
+              "name": "oidc-secret",
+              "keyVaultUrl": "[format('https://{0}.vault.azure.net/secrets/prod2-oidc-client-secret', parameters('keyVaultName'))]",
+              "identity": "system"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "prod2-warning",
+              "image": "[format('{0}/prod2-warning:latest', parameters('acrLoginServer'))]",
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1Gi"
+              },
+              "env": [
+                {
+                  "name": "DATABASE_URL",
+                  "secretRef": "database-url"
+                },
+                {
+                  "name": "SESSION_SECRET_KEY",
+                  "secretRef": "session-secret"
+                },
+                {
+                  "name": "OIDC_CLIENT_SECRET",
+                  "secretRef": "oidc-secret"
+                },
+                {
+                  "name": "OIDC_CLIENT_ID",
+                  "value": "APP_ID_ENTRA"
+                },
+                {
+                  "name": "OIDC_ISSUER",
+                  "value": "https://login.microsoftonline.com/TENANT_ID/v2.0"
+                },
+                {
+                  "name": "APP_PUBLIC_URL",
+                  "value": "[format('https://{0}-{1}-prod2.example.azurecontainerapps.io', parameters('namePrefix'), parameters('env'))]"
+                }
+              ]
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 3
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "appFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.App/containerApps', format('{0}-{1}-prod2', parameters('namePrefix'), parameters('env'))), '2024-03-01').configuration.ingress.fqdn]"
+    },
+    "appPrincipalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.App/containerApps', format('{0}-{1}-prod2', parameters('namePrefix'), parameters('env'))), '2024-03-01', 'full').identity.principalId]"
+    }
+  }
+}

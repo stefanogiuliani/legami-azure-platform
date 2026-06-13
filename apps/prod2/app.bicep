@@ -1,0 +1,45 @@
+param namePrefix string
+param env string
+param location string
+param caeId string
+param acrLoginServer string
+param keyVaultName string
+param ingressPublic bool
+
+resource app 'Microsoft.App/containerApps@2024-03-01' = {
+  name: '${namePrefix}-${env}-prod2'
+  location: location
+  tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', app: 'prod2' }
+  identity: { type: 'SystemAssigned' }
+  properties: {
+    managedEnvironmentId: caeId
+    configuration: {
+      ingress: { external: ingressPublic, targetPort: 8000, transport: 'auto' }
+      registries: [ { server: acrLoginServer, identity: 'system' } ]
+      secrets: [
+        { name: 'database-url', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod2-database-url', identity: 'system' }
+        { name: 'session-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod2-session-secret', identity: 'system' }
+        { name: 'oidc-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod2-oidc-client-secret', identity: 'system' }
+      ]
+    }
+    template: {
+      containers: [ {
+        name: 'prod2-warning'
+        image: '${acrLoginServer}/prod2-warning:latest'
+        resources: { cpu: json('0.5'), memory: '1Gi' }
+        env: [
+          { name: 'DATABASE_URL', secretRef: 'database-url' }
+          { name: 'SESSION_SECRET_KEY', secretRef: 'session-secret' }
+          { name: 'OIDC_CLIENT_SECRET', secretRef: 'oidc-secret' }
+          { name: 'OIDC_CLIENT_ID', value: 'APP_ID_ENTRA' }
+          { name: 'OIDC_ISSUER', value: 'https://login.microsoftonline.com/TENANT_ID/v2.0' }
+          { name: 'APP_PUBLIC_URL', value: 'https://${namePrefix}-${env}-prod2.example.azurecontainerapps.io' }
+        ]
+      } ]
+      scale: { minReplicas: 1, maxReplicas: 3 }
+    }
+  }
+}
+
+output appFqdn string = app.properties.configuration.ingress.fqdn
+output appPrincipalId string = app.identity.principalId
