@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "4331241114358262692"
+      "templateHash": "8647763833097538746"
     }
   },
   "parameters": {
@@ -121,6 +121,10 @@
                 {
                   "name": "APP_PUBLIC_URL",
                   "value": "[format('https://{0}-{1}-prod2.{2}', parameters('namePrefix'), parameters('env'), parameters('caeDefaultDomain'))]"
+                },
+                {
+                  "name": "OIDC_SCOPES",
+                  "value": "openid profile email"
                 }
               ]
             }

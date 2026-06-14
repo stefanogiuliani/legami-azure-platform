@@ -37,6 +37,9 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
           { name: 'OIDC_CLIENT_ID', value: appId }
           { name: 'OIDC_ISSUER', value: 'https://login.microsoftonline.com/${tenantId}/v2.0' }
           { name: 'APP_PUBLIC_URL', value: 'https://${namePrefix}-${env}-prod2.${caeDefaultDomain}' }
+          // ⚠️ 'groups' NON è uno scope OIDC valido su Entra (AADSTS650053 → loop di redirect al login).
+          // Il default dell'app include 'groups': lo sovrascriviamo. Per i gruppi usa i groupMembershipClaims (claim, non scope).
+          { name: 'OIDC_SCOPES', value: 'openid profile email' }
         ]
       } ]
       scale: { minReplicas: 1, maxReplicas: 3 }
