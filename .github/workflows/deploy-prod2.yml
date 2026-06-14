@@ -15,8 +15,8 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - name: Build & push image
-        run: az acr build --registry legamiprodacr --image prod2-warning:${{ github.sha }} --image prod2-warning:latest .
+        run: az acr build --registry legamiprod1acr --image prod2-warning:${{ github.sha }} --image prod2-warning:latest .
       - name: Deploy revision
-        run: az containerapp update -g legami-prod-rg -n legami-prod-prod2 --image legamiprodacr.azurecr.io/prod2-warning:${{ github.sha }}
+        run: az containerapp update -g legami-prod1-rg -n legami-prod1-prod2 --image legamiprod1acr.azurecr.io/prod2-warning:${{ github.sha }}
       - name: Run migrations
-        run: az containerapp exec -g legami-prod-rg -n legami-prod-prod2 --command "alembic upgrade head"
+        run: az containerapp exec -g legami-prod1-rg -n legami-prod1-prod2 --command "alembic upgrade head"
