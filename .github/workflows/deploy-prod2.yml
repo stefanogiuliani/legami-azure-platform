@@ -1,0 +1,22 @@
+name: Deploy PROD2 to Azure
+on:
+  workflow_dispatch:        # trigger manuale: lo lanci tu dalla UI di GitHub
+permissions:
+  id-token: write           # necessario per OIDC verso Azure (nessun segreto salvato)
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Build & push image
+        run: az acr build --registry legamiprodacr --image prod2-warning:${{ github.sha }} --image prod2-warning:latest .
+      - name: Deploy revision
+        run: az containerapp update -g legami-prod-rg -n legami-prod-prod2 --image legamiprodacr.azurecr.io/prod2-warning:${{ github.sha }}
+      - name: Run migrations
+        run: az containerapp exec -g legami-prod-rg -n legami-prod-prod2 --command "alembic upgrade head"
