@@ -5,6 +5,9 @@ param caeId string
 param acrLoginServer string
 param keyVaultName string
 param ingressPublic bool
+param appId string
+param tenantId string
+param caeDefaultDomain string
 
 resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: '${namePrefix}-${env}-prod2'
@@ -31,9 +34,9 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
           { name: 'DATABASE_URL', secretRef: 'database-url' }
           { name: 'SESSION_SECRET_KEY', secretRef: 'session-secret' }
           { name: 'OIDC_CLIENT_SECRET', secretRef: 'oidc-secret' }
-          { name: 'OIDC_CLIENT_ID', value: 'APP_ID_ENTRA' }
-          { name: 'OIDC_ISSUER', value: 'https://login.microsoftonline.com/TENANT_ID/v2.0' }
-          { name: 'APP_PUBLIC_URL', value: 'https://${namePrefix}-${env}-prod2.example.azurecontainerapps.io' }
+          { name: 'OIDC_CLIENT_ID', value: appId }
+          { name: 'OIDC_ISSUER', value: 'https://login.microsoftonline.com/${tenantId}/v2.0' }
+          { name: 'APP_PUBLIC_URL', value: 'https://${namePrefix}-${env}-prod2.${caeDefaultDomain}' }
         ]
       } ]
       scale: { minReplicas: 1, maxReplicas: 3 }
