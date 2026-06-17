@@ -1,8 +1,9 @@
 using './main.bicep'
 
 param namePrefix = 'legami'
-param env = 'prod1'
+param env = 'dev'
 param location = 'northeurope'
+param kvPurgeProtection = false // palestra: vault purgabile (vedi memoria azure-gym)
 param ingressPublic = true
 param pgSku = 'Standard_B1ms'
 param pgAdminUser = 'pgadmin'

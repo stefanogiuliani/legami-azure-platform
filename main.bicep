@@ -9,6 +9,8 @@ param pgAdminUser string
 @secure()
 param pgAdminPassword string
 param githubRepo string
+@description('Purge protection del Key Vault. true = ambienti reali; false = palestra (vault purgeable).')
+param kvPurgeProtection bool = true
 
 module network './modules/network.bicep' = {
   name: 'network'
@@ -20,7 +22,7 @@ module obs './modules/observability.bicep' = {
 }
 module kv './modules/keyvault.bicep' = {
   name: 'kv'
-  params: { namePrefix: namePrefix, env: env, location: location }
+  params: { namePrefix: namePrefix, env: env, location: location, purgeProtection: kvPurgeProtection }
 }
 module acr './modules/registry.bicep' = {
   name: 'acr'
@@ -46,4 +48,9 @@ module pg './modules/postgres.bicep' = {
     peSubnetId: network.outputs.peSubnetId
     vnetId: network.outputs.vnetId
   }
+}
+module storage './modules/storage.bicep' = {
+  name: 'storage'
+  params: { namePrefix: namePrefix, env: env, location: location, caeName: '${namePrefix}-${env}-cae' }
+  dependsOn: [ cae ]
 }

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "13573156524359901262"
+      "templateHash": "18213475710880549095"
     }
   },
   "parameters": {
@@ -32,6 +32,13 @@
     },
     "githubRepo": {
       "type": "string"
+    },
+    "kvPurgeProtection": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Purge protection del Key Vault. true = ambienti reali; false = palestra (vault purgeable)."
+      }
     }
   },
   "resources": [
@@ -233,6 +240,9 @@
           },
           "location": {
             "value": "[parameters('location')]"
+          },
+          "purgeProtection": {
+            "value": "[parameters('kvPurgeProtection')]"
           }
         },
         "template": {
@@ -242,7 +252,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.44.1.10279",
-              "templateHash": "3888130499059329317"
+              "templateHash": "9716599816123880309"
             }
           },
           "parameters": {
@@ -258,6 +268,13 @@
             "tenantId": {
               "type": "string",
               "defaultValue": "[subscription().tenantId]"
+            },
+            "purgeProtection": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Purge protection del Key Vault. true = ambienti reali (es. prod di Legami); false = palestra, così il vault è purgabile e distruggi/ricostruisci senza bruciare il nome per 7 giorni."
+              }
             }
           },
           "resources": [
@@ -280,7 +297,7 @@
                 "tenantId": "[parameters('tenantId')]",
                 "enableRbacAuthorization": true,
                 "softDeleteRetentionInDays": 7,
-                "enablePurgeProtection": true
+                "enablePurgeProtection": "[if(parameters('purgeProtection'), true(), null())]"
               }
             }
           ],
@@ -787,6 +804,158 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Resources/deployments', 'network')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "storage",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "namePrefix": {
+            "value": "[parameters('namePrefix')]"
+          },
+          "env": {
+            "value": "[parameters('env')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "caeName": {
+            "value": "[format('{0}-{1}-cae', parameters('namePrefix'), parameters('env'))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.44.1.10279",
+              "templateHash": "16918783032223310110"
+            }
+          },
+          "parameters": {
+            "namePrefix": {
+              "type": "string"
+            },
+            "env": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "caeName": {
+              "type": "string",
+              "metadata": {
+                "description": "Nome del Container Apps Environment a cui agganciare i file share."
+              }
+            },
+            "shares": {
+              "type": "array",
+              "defaultValue": [
+                "parsly-data",
+                "log1-data",
+                "dp1-data"
+              ],
+              "metadata": {
+                "description": "Un file share per app con stato su disco (parsly, LOG1, DP1)."
+              }
+            },
+            "shareQuotaGb": {
+              "type": "int",
+              "defaultValue": 16,
+              "metadata": {
+                "description": "Quota per share in GiB."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2023-05-01",
+              "name": "[format('{0}{1}st', parameters('namePrefix'), parameters('env'))]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "Standard_LRS"
+              },
+              "kind": "StorageV2",
+              "tags": {
+                "project": "INT101",
+                "env": "[parameters('env')]",
+                "owner": "DNAI",
+                "managedBy": "bicep"
+              },
+              "properties": {
+                "minimumTlsVersion": "TLS1_2",
+                "allowBlobPublicAccess": false,
+                "largeFileSharesState": "Enabled"
+              }
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/fileServices",
+              "apiVersion": "2023-05-01",
+              "name": "[format('{0}/{1}', format('{0}{1}st', parameters('namePrefix'), parameters('env')), 'default')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', format('{0}{1}st', parameters('namePrefix'), parameters('env')))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "share",
+                "count": "[length(parameters('shares'))]"
+              },
+              "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+              "apiVersion": "2023-05-01",
+              "name": "[format('{0}/{1}/{2}', format('{0}{1}st', parameters('namePrefix'), parameters('env')), 'default', parameters('shares')[copyIndex()])]",
+              "properties": {
+                "shareQuota": "[parameters('shareQuotaGb')]",
+                "enabledProtocols": "SMB"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', format('{0}{1}st', parameters('namePrefix'), parameters('env')), 'default')]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "caeStorage",
+                "count": "[length(parameters('shares'))]"
+              },
+              "type": "Microsoft.App/managedEnvironments/storages",
+              "apiVersion": "2024-03-01",
+              "name": "[format('{0}/{1}', parameters('caeName'), parameters('shares')[copyIndex()])]",
+              "properties": {
+                "azureFile": {
+                  "accountName": "[format('{0}{1}st', parameters('namePrefix'), parameters('env'))]",
+                  "accountKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', format('{0}{1}st', parameters('namePrefix'), parameters('env'))), '2023-05-01').keys[0].value]",
+                  "shareName": "[parameters('shares')[copyIndex()]]",
+                  "accessMode": "ReadWrite"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', format('{0}{1}st', parameters('namePrefix'), parameters('env')))]",
+                "share"
+              ]
+            }
+          ],
+          "outputs": {
+            "storageAccountName": {
+              "type": "string",
+              "value": "[format('{0}{1}st', parameters('namePrefix'), parameters('env'))]"
+            },
+            "shareNames": {
+              "type": "array",
+              "value": "[parameters('shares')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'cae')]"
       ]
     }
   ]
