@@ -9,6 +9,10 @@ param entraClientId string
 param entraTenantId string
 param imageTag string = 'latest'
 param keyVaultName string = '${namePrefix}-${env}-kv'
+@description('CSV di client-id (azp) accettati dal PDP oltre a quelli derivati dalla registry (allowlist di rete di sicurezza). Il codice (src/lib/authz/accepted-azp.ts) è fail-closed: in MODE rebac, se questa lista è vuota E la registry non ha app pubblicate, ogni azp viene rifiutato.')
+param acceptedAzp string = ''
+@description('CSV di audience (aud) accettate dal verificatore token del PDP (env AUTH_ACCEPTED_AUDIENCES, vedi src/lib/authz/verifier-config.ts). Vuota = nessuna restrizione di audience lato verificatore.')
+param acceptedAudiences string = ''
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: caeName
@@ -60,6 +64,8 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
           { name: 'AUTH_ENTRA_TENANT_ID', value: entraTenantId }
           { name: 'REBAC_AUTHZ_URL', value: rebacUrl }
           { name: 'REBAC_AUTHZ_API_KEY', secretRef: 'rebac-key' }
+          { name: 'AUTHZ_ACCEPTED_AZP', value: acceptedAzp }
+          { name: 'AUTH_ACCEPTED_AUDIENCES', value: acceptedAudiences }
         ]
       } ]
       scale: { minReplicas: 1, maxReplicas: 1 }
