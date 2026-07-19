@@ -6,20 +6,26 @@ param caeName string = '${namePrefix}-${env}-cae'
 param rebacUrl string = 'http://${namePrefix}-${env}-rebac-authz'
 // pin: fissare a digest al collaudo dev (B6/G2 reproducibility)
 param curlImage string = 'curlimages/curl:latest'
-@secure()
-param adminKey string
 param tupleUser string
 param tupleRelation string
 param tupleObject string
 @description('Suffisso per nome job univoco per-app (es. -dp1), così agenti in parallelo non collidono sul singleton.')
 param jobSuffix string = ''
+param keyVaultName string = '${namePrefix}-${env}-kv'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = { name: caeName }
+resource appKv 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: '${namePrefix}-${env}-app-kv'
+}
 
 resource job 'Microsoft.App/jobs@2024-03-01' = {
   name: '${namePrefix}-${env}-rebac-grant${jobSuffix}'
   location: location
   tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', job: 'rebac-grant' }
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${appKv.id}': {} }
+  }
   properties: {
     environmentId: cae.id
     configuration: {
@@ -27,7 +33,7 @@ resource job 'Microsoft.App/jobs@2024-03-01' = {
       replicaTimeout: 120
       replicaRetryLimit: 0
       manualTriggerConfig: { parallelism: 1, replicaCompletionCount: 1 }
-      secrets: [ { name: 'admin-key', value: adminKey } ]
+      secrets: [ { name: 'admin-key', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/pdp-admin-api-key', identity: appKv.id } ]
     }
     template: {
       containers: [ {

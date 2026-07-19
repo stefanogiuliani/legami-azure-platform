@@ -7,17 +7,23 @@ param caeName string = '${namePrefix}-${env}-cae'
 param rebacUrl string = 'http://${namePrefix}-${env}-rebac-authz'
 // pin: fissare a digest al collaudo dev (B6/G2 reproducibility)
 param curlImage string = 'curlimages/curl:latest'
-@secure()
-param apiKey string
+param keyVaultName string = '${namePrefix}-${env}-kv'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: caeName
+}
+resource appKv 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: '${namePrefix}-${env}-app-kv'
 }
 
 resource job 'Microsoft.App/jobs@2024-03-01' = {
   name: '${namePrefix}-${env}-rebac-check'
   location: location
   tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', job: 'rebac-check' }
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${appKv.id}': {} }
+  }
   properties: {
     environmentId: cae.id
     configuration: {
@@ -25,7 +31,7 @@ resource job 'Microsoft.App/jobs@2024-03-01' = {
       replicaTimeout: 120
       replicaRetryLimit: 0
       manualTriggerConfig: { parallelism: 1, replicaCompletionCount: 1 }
-      secrets: [ { name: 'api-key', value: apiKey } ]
+      secrets: [ { name: 'api-key', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/pdp-api-key', identity: appKv.id } ]
     }
     template: {
       containers: [ {

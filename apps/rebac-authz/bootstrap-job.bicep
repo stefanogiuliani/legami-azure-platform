@@ -8,14 +8,16 @@ param caeName string = '${namePrefix}-${env}-cae'
 // Dentro il CAE le app HTTP si raggiungono a http://<app> (porta 80 dell'ingress), NON sul targetPort.
 param openfgaUrl string = 'http://${namePrefix}-${env}-openfga'
 param imageTag string = 'latest'
-@secure()
-param presharedKey string
+param keyVaultName string = '${namePrefix}-${env}-kv'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: caeName
 }
 resource ci 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: '${namePrefix}-${env}-ci'
+}
+resource appKv 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: '${namePrefix}-${env}-app-kv'
 }
 
 var acr = '${namePrefix}${env}acr.azurecr.io'
@@ -26,7 +28,7 @@ resource job 'Microsoft.App/jobs@2024-03-01' = {
   tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', job: 'rebac-bootstrap' }
   identity: {
     type: 'UserAssigned'
-    userAssignedIdentities: { '${ci.id}': {} }
+    userAssignedIdentities: { '${ci.id}': {}, '${appKv.id}': {} }
   }
   properties: {
     environmentId: cae.id
@@ -36,7 +38,7 @@ resource job 'Microsoft.App/jobs@2024-03-01' = {
       replicaRetryLimit: 1
       manualTriggerConfig: { parallelism: 1, replicaCompletionCount: 1 }
       registries: [ { server: acr, identity: ci.id } ]
-      secrets: [ { name: 'fga-token', value: presharedKey } ]
+      secrets: [ { name: 'fga-token', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/openfga-preshared-key', identity: appKv.id } ]
     }
     template: {
       containers: [ {
