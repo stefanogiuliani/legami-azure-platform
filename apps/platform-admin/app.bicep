@@ -7,6 +7,7 @@ param caeName string = '${namePrefix}-${env}-cae'
 param rebacUrl string = 'http://${namePrefix}-${env}-rebac-authz'
 param entraClientId string
 param entraTenantId string
+param imageTag string = 'latest'
 @secure()
 param entraClientSecret string
 @secure()
@@ -49,7 +50,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
     template: {
       containers: [ {
         name: 'platform-admin'
-        image: '${acr}/platform-admin:latest'
+        image: '${acr}/platform-admin:${imageTag}'
         resources: { cpu: json('0.5'), memory: '1Gi' }
         env: [
           { name: 'AUTH_SECRET', secretRef: 'auth-secret' }

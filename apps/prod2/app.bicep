@@ -8,6 +8,7 @@ param ingressPublic bool
 param appId string
 param tenantId string
 param caeDefaultDomain string
+param imageTag string = 'latest'
 
 resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: '${namePrefix}-${env}-prod2'
@@ -28,7 +29,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
     template: {
       containers: [ {
         name: 'prod2-warning'
-        image: '${acrLoginServer}/prod2-warning:latest'
+        image: '${acrLoginServer}/prod2-warning:${imageTag}'
         resources: { cpu: json('0.5'), memory: '1Gi' }
         env: [
           { name: 'DATABASE_URL', secretRef: 'database-url' }

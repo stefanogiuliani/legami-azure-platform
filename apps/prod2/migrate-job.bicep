@@ -5,6 +5,7 @@ param location string = resourceGroup().location
 param caeName string = '${namePrefix}-${env}-cae'
 param pgHost string = '${namePrefix}-${env}-pg.postgres.database.azure.com'
 param dbUser string = 'prod2'
+param imageTag string = 'latest'
 @secure()
 param dbPassword string
 
@@ -30,7 +31,7 @@ resource job 'Microsoft.App/jobs@2024-03-01' = {
     template: {
       containers: [ {
         name: 'migrate'
-        image: '${acr}/prod2-warning:latest'
+        image: '${acr}/prod2-warning:${imageTag}'
         resources: { cpu: json('0.5'), memory: '1Gi' }
         command: [ '/app/.venv/bin/alembic' ]
         args: [ 'upgrade', 'head' ]

@@ -7,6 +7,7 @@ param location string = resourceGroup().location
 param caeName string = '${namePrefix}-${env}-cae'
 // Dentro il CAE le app HTTP si raggiungono a http://<app> (porta 80 dell'ingress), NON sul targetPort.
 param openfgaUrl string = 'http://${namePrefix}-${env}-openfga'
+param imageTag string = 'latest'
 @secure()
 param presharedKey string
 
@@ -40,7 +41,7 @@ resource job 'Microsoft.App/jobs@2024-03-01' = {
     template: {
       containers: [ {
         name: 'bootstrap'
-        image: '${acr}/rebac-authz:latest'
+        image: '${acr}/rebac-authz:${imageTag}'
         resources: { cpu: json('0.5'), memory: '1Gi' }
         command: [ 'npm' ]
         args: [ 'run', 'bootstrap' ]

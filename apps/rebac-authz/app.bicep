@@ -8,6 +8,7 @@ param caeName string = '${namePrefix}-${env}-cae'
 param openfgaUrl string = 'http://${namePrefix}-${env}-openfga'
 param storeId string
 param modelId string
+param imageTag string = 'latest'
 @secure()
 param presharedKey string
 @secure()
@@ -46,7 +47,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
     template: {
       containers: [ {
         name: 'rebac-authz'
-        image: '${acr}/rebac-authz:latest'
+        image: '${acr}/rebac-authz:${imageTag}'
         resources: { cpu: json('0.5'), memory: '1Gi' }
         env: [
           { name: 'OPENFGA_API_URL', value: openfgaUrl }
