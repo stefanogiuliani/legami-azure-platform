@@ -47,6 +47,10 @@ resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: caeName
 }
 
+// SICUREZZA (B6, hardening 2c): questa risorsa (managedEnvironments/storages) richiede accountKey,
+// non supporta keyVaultUrl — resta così di necessità, non per pigrizia. Il valore è risolto da ARM
+// a deploy-time via listKeys() e non transita mai come parametro né come secret leggibile dall'app;
+// il rischio reale (SA key passata come env a platform-admin) è chiuso a parte col KV reference 'platform-admin-sa-key'.
 resource caeStorage 'Microsoft.App/managedEnvironments/storages@2024-03-01' = [for (s, i) in shares: {
   parent: cae
   name: s
