@@ -1,11 +1,9 @@
-// LOG1 (app consumer) — variante PALESTRA: identità CI per pull ACR, segreti inline,
+// LOG1 (app consumer) — identità CI per pull ACR, segreti da Key Vault (KV reference),
 // login Entra, PDP = platform-admin. Gemello di prod2 + Azure Files su /data (tariffario + upload).
 param namePrefix string
 param env string
 param location string = resourceGroup().location
 param caeName string = '${namePrefix}-${env}-cae'
-param pgHost string = '${namePrefix}-${env}-pg.postgres.database.azure.com'
-param dbUser string = 'log1'
 param oidcClientId string
 param oidcIssuer string
 param oidcScopes string = 'openid profile email'
@@ -17,15 +15,11 @@ param imageTag string = 'latest'
 param pdpUrl string = 'http://${namePrefix}-${env}-platform-admin/api/authz/decide'
 @description('Nome del link storage sul CAE per i file durevoli di log1 (creato dal modulo storage).')
 param dataStorageName string = 'log1-data'
-@secure()
-param dbPassword string
-@secure()
-param oidcSecret string
-@secure()
-param sessionSecret string
+param keyVaultName string = '${namePrefix}-${env}-kv'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = { name: caeName }
 resource ci 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = { name: '${namePrefix}-${env}-ci' }
+resource appKv 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = { name: '${namePrefix}-${env}-app-kv' }
 
 var acr = '${namePrefix}${env}acr.azurecr.io'
 var fqdn = '${namePrefix}-${env}-log1.${cae.properties.defaultDomain}'
@@ -34,16 +28,17 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: '${namePrefix}-${env}-log1'
   location: location
   tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', app: 'log1' }
-  identity: { type: 'UserAssigned', userAssignedIdentities: { '${ci.id}': {} } }
+  identity: { type: 'UserAssigned', userAssignedIdentities: { '${ci.id}': {}, '${appKv.id}': {} } }
   properties: {
     managedEnvironmentId: cae.id
     configuration: {
       ingress: { external: true, targetPort: 8000, transport: 'auto' }
       registries: [ { server: acr, identity: ci.id } ]
+      // database-url: stessa fonte usata da migrate-job.bicep (B6, una sola verità).
       secrets: [
-        { name: 'database-url', value: 'postgresql+asyncpg://${dbUser}:${dbPassword}@${pgHost}:5432/log1?ssl=require' }
-        { name: 'oidc-secret', value: oidcSecret }
-        { name: 'session-secret', value: sessionSecret }
+        { name: 'database-url', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/log1-database-url', identity: appKv.id }
+        { name: 'oidc-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/log1-oidc-client-secret', identity: appKv.id }
+        { name: 'session-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/log1-session-secret', identity: appKv.id }
       ]
     }
     template: {

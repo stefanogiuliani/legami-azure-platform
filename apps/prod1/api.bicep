@@ -4,8 +4,6 @@ param namePrefix string
 param env string
 param location string = resourceGroup().location
 param caeName string = '${namePrefix}-${env}-cae'
-param pgHost string = '${namePrefix}-${env}-pg.postgres.database.azure.com'
-param dbUser string = 'prod1'
 param oidcClientId string
 param oidcIssuer string
 param oidcScopes string = 'openid profile email'
@@ -18,32 +16,29 @@ param redisUrl string = 'redis://${namePrefix}-${env}-redis:6379/3'
 param imageTag string = 'latest'
 // GOTCHA 1: URL interno = http://<app> (porta 80), non il targetPort
 param pdpUrl string = 'http://${namePrefix}-${env}-platform-admin/api/authz/decide'
-@secure()
-param dbPassword string
-@secure()
-param oidcSecret string
-@secure()
-param sessionSecret string
+param keyVaultName string = '${namePrefix}-${env}-kv'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = { name: caeName }
 resource ci 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = { name: '${namePrefix}-${env}-ci' }
+resource appKv 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = { name: '${namePrefix}-${env}-app-kv' }
 var acr = '${namePrefix}${env}acr.azurecr.io'
 
 resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: '${namePrefix}-${env}-prod1-api'
   location: location
   tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', app: 'prod1-api' }
-  identity: { type: 'UserAssigned', userAssignedIdentities: { '${ci.id}': {} } }
+  identity: { type: 'UserAssigned', userAssignedIdentities: { '${ci.id}': {}, '${appKv.id}': {} } }
   properties: {
     managedEnvironmentId: cae.id
     configuration: {
       ingress: { external: false, targetPort: 8000, transport: 'auto' }
       registries: [ { server: acr, identity: ci.id } ]
+      // analytics-db-url / operational-db-url: stessa fonte usata da migrate-job.bicep (B6, una sola verità).
       secrets: [
-        { name: 'analytics-db-url', value: 'postgresql+asyncpg://${dbUser}:${dbPassword}@${pgHost}:5432/analytics?ssl=require' }
-        { name: 'operational-db-url', value: 'postgresql+asyncpg://${dbUser}:${dbPassword}@${pgHost}:5432/operational?ssl=require' }
-        { name: 'oidc-secret', value: oidcSecret }
-        { name: 'session-secret', value: sessionSecret }
+        { name: 'analytics-db-url', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod1-analytics-db-url', identity: appKv.id }
+        { name: 'operational-db-url', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod1-operational-db-url', identity: appKv.id }
+        { name: 'oidc-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod1-oidc-client-secret', identity: appKv.id }
+        { name: 'session-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod1-session-secret', identity: appKv.id }
       ]
     }
     template: {

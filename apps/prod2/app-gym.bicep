@@ -1,5 +1,7 @@
 // PROD2 (app consumer) — variante PALESTRA: identità CI per pull ACR, segreti inline,
 // login Entra, PDP = platform-admin. (In prod: segreti da Key Vault, vedi app.bicep.)
+// SUPERSEDED (B6): sostituito da app.bicep, che implementa il pattern Key Vault reference.
+// Questo file resta come riferimento "palestra" (segreti inline) e non va più deployato.
 param namePrefix string
 param env string
 param location string = resourceGroup().location

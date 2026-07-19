@@ -19,37 +19,32 @@ param pdpBaseUrl string = 'http://${namePrefix}-${env}-platform-admin'
 param registryUrl string = 'http://${namePrefix}-${env}-platform-admin/api/registry'
 @description('clientId logico usato dal PDP decide e da excludeSelf nel registry. Resta "launcher" anche in Entra.')
 param appClientName string = 'launcher'
-@secure()
-param entraSecret string
-@secure()
-param nextauthSecret string
-@description('Chiave registry (header x-registry-key) condivisa con platform-admin. Vuota = catalogo statico.')
-@secure()
-param registryApiKey string = ''
+@description('Il valore vive in Key Vault (KV reference): non possiamo più dedurre da un param vuoto se la key registry esiste. Flag esplicito, settato dal deploy script in base a cosa è stato creato in KV. Key assente/false = catalogo in degraded/static (vedi registry-client.ts). Vedi COORDINATION.md GAP registry.')
+param hasRegistryKey bool = false
+param keyVaultName string = '${namePrefix}-${env}-kv'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = { name: caeName }
 resource ci 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = { name: '${namePrefix}-${env}-ci' }
+resource appKv 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = { name: '${namePrefix}-${env}-app-kv' }
 
 var acr = '${namePrefix}${env}acr.azurecr.io'
 var fqdn = '${namePrefix}-${env}-launcher.${cae.properties.defaultDomain}'
-// Azure NON accetta secret con valore vuoto: il secret/env registry esistono SOLO se la key è valorizzata.
-// Key assente = catalogo in degraded/static (vedi registry-client.ts). Vedi COORDINATION.md GAP registry.
-var hasRegistryKey = !empty(registryApiKey)
 
 resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: '${namePrefix}-${env}-launcher'
   location: location
   tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', app: 'launcher' }
-  identity: { type: 'UserAssigned', userAssignedIdentities: { '${ci.id}': {} } }
+  identity: { type: 'UserAssigned', userAssignedIdentities: { '${ci.id}': {}, '${appKv.id}': {} } }
   properties: {
     managedEnvironmentId: cae.id
     configuration: {
       ingress: { external: true, targetPort: 3000, transport: 'auto' }
       registries: [ { server: acr, identity: ci.id } ]
+      // registry-api-key: nome KV CONDIVISO con platform-admin (stesso segreto, non 'launcher-...').
       secrets: concat([
-        { name: 'entra-secret', value: entraSecret }
-        { name: 'nextauth-secret', value: nextauthSecret }
-      ], hasRegistryKey ? [ { name: 'registry-api-key', value: registryApiKey } ] : [])
+        { name: 'entra-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/launcher-entra-client-secret', identity: appKv.id }
+        { name: 'nextauth-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/launcher-nextauth-secret', identity: appKv.id }
+      ], hasRegistryKey ? [ { name: 'registry-api-key', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/registry-api-key', identity: appKv.id } ] : [])
     }
     template: {
       containers: [ {

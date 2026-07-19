@@ -2,26 +2,26 @@
 // l'immagine prod1-api. Gli ini hanno sqlalchemy.url vuoto + prepend_sys_path=. (no bug placeholder,
 // no PYTHONPATH necessario); la URL la legge env.py da settings.{analytics,operational}_db_url.
 // AUTH_ENABLED=false → le settings non pretendono i secret OIDC durante la migrazione.
+// I DATABASE URL completi stanno in Key Vault come 'prod1-analytics-db-url' / 'prod1-operational-db-url':
+// stessa fonte usata da api.bicep, una sola verità per le connection string (B6).
 param namePrefix string
 param env string
 param location string = resourceGroup().location
 param caeName string = '${namePrefix}-${env}-cae'
-param pgHost string = '${namePrefix}-${env}-pg.postgres.database.azure.com'
-param dbUser string = 'prod1'
 param imageTag string = 'latest'
 param redisUrl string = 'redis://${namePrefix}-${env}-redis:6379/3'
-@secure()
-param dbPassword string
+param keyVaultName string = '${namePrefix}-${env}-kv'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = { name: caeName }
 resource ci 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = { name: '${namePrefix}-${env}-ci' }
+resource appKv 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = { name: '${namePrefix}-${env}-app-kv' }
 var acr = '${namePrefix}${env}acr.azurecr.io'
 
 resource job 'Microsoft.App/jobs@2024-03-01' = {
   name: '${namePrefix}-${env}-prod1-migrate'
   location: location
   tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', job: 'prod1-migrate' }
-  identity: { type: 'UserAssigned', userAssignedIdentities: { '${ci.id}': {} } }
+  identity: { type: 'UserAssigned', userAssignedIdentities: { '${ci.id}': {}, '${appKv.id}': {} } }
   properties: {
     environmentId: cae.id
     configuration: {
@@ -31,8 +31,8 @@ resource job 'Microsoft.App/jobs@2024-03-01' = {
       manualTriggerConfig: { parallelism: 1, replicaCompletionCount: 1 }
       registries: [ { server: acr, identity: ci.id } ]
       secrets: [
-        { name: 'analytics-db-url', value: 'postgresql+asyncpg://${dbUser}:${dbPassword}@${pgHost}:5432/analytics?ssl=require' }
-        { name: 'operational-db-url', value: 'postgresql+asyncpg://${dbUser}:${dbPassword}@${pgHost}:5432/operational?ssl=require' }
+        { name: 'analytics-db-url', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod1-analytics-db-url', identity: appKv.id }
+        { name: 'operational-db-url', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod1-operational-db-url', identity: appKv.id }
       ]
     }
     template: {

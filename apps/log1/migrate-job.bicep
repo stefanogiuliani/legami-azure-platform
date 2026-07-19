@@ -1,24 +1,24 @@
 // Job migrazioni LOG1: gira l'immagine log1-app con `alembic upgrade head` contro il DB privato.
 // alembic è globale sul PATH (vedi Dockerfile log1), WORKDIR /app dove sta alembic.ini.
+// Il DATABASE_URL completo sta in Key Vault come 'log1-database-url': stessa fonte usata da
+// app-gym.bicep, una sola verità per la connection string (B6).
 param namePrefix string
 param env string
 param location string = resourceGroup().location
 param caeName string = '${namePrefix}-${env}-cae'
-param pgHost string = '${namePrefix}-${env}-pg.postgres.database.azure.com'
-param dbUser string = 'log1'
 param imageTag string = 'latest'
-@secure()
-param dbPassword string
+param keyVaultName string = '${namePrefix}-${env}-kv'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = { name: caeName }
 resource ci 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = { name: '${namePrefix}-${env}-ci' }
+resource appKv 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = { name: '${namePrefix}-${env}-app-kv' }
 var acr = '${namePrefix}${env}acr.azurecr.io'
 
 resource job 'Microsoft.App/jobs@2024-03-01' = {
   name: '${namePrefix}-${env}-log1-migrate'
   location: location
   tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', job: 'log1-migrate' }
-  identity: { type: 'UserAssigned', userAssignedIdentities: { '${ci.id}': {} } }
+  identity: { type: 'UserAssigned', userAssignedIdentities: { '${ci.id}': {}, '${appKv.id}': {} } }
   properties: {
     environmentId: cae.id
     configuration: {
@@ -27,7 +27,7 @@ resource job 'Microsoft.App/jobs@2024-03-01' = {
       replicaRetryLimit: 1
       manualTriggerConfig: { parallelism: 1, replicaCompletionCount: 1 }
       registries: [ { server: acr, identity: ci.id } ]
-      secrets: [ { name: 'database-url', value: 'postgresql+asyncpg://${dbUser}:${dbPassword}@${pgHost}:5432/log1?ssl=require' } ]
+      secrets: [ { name: 'database-url', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/log1-database-url', identity: appKv.id } ]
     }
     template: {
       containers: [ {

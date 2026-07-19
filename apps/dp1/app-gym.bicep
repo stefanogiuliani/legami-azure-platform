@@ -1,9 +1,10 @@
-// DP1 (allestimento negozi) — variante PALESTRA.
+// DP1 (allestimento negozi).
 // ⚠️ DIVERGE da log1/prod2: dp1 NON è un consumer-kit Postgres. Usa job-store su FILESYSTEM
 // (default) con artifact su Azure Files montato in /data, e schema creato idempotente all'init
 // → NIENTE Postgres, NIENTE db-onboard, NIENTE migrate-job/alembic. Vedi COORDINATION.md (finding 22:10).
 // Vincoli app: memory >=1Gi (LibreOffice headless), scale 1-1 (job-store in-memory/single-worker),
 // PYTHONPATH=/app/src già nel Dockerfile, entrypoint apps.api.main:app, porta 8000.
+// Segreti da Key Vault (pattern keyVaultUrl, vedi prod2) via UAMI app-kv.
 param namePrefix string
 param env string
 param location string = resourceGroup().location
@@ -18,13 +19,11 @@ param imageTag string = 'latest'
 param pdpUrl string = 'http://${namePrefix}-${env}-platform-admin/api/authz/decide'
 @description('Nome del link storage Azure Files sul CAE per i job durevoli di dp1 (artifact).')
 param dataStorageName string = 'dp1-data'
-@secure()
-param oidcSecret string
-@secure()
-param sessionSecret string
+param keyVaultName string = '${namePrefix}-${env}-kv'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = { name: caeName }
 resource ci 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = { name: '${namePrefix}-${env}-ci' }
+resource appKv 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = { name: '${namePrefix}-${env}-app-kv' }
 
 var acr = '${namePrefix}${env}acr.azurecr.io'
 var fqdn = '${namePrefix}-${env}-dp1.${cae.properties.defaultDomain}'
@@ -33,15 +32,15 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: '${namePrefix}-${env}-dp1'
   location: location
   tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', app: 'dp1' }
-  identity: { type: 'UserAssigned', userAssignedIdentities: { '${ci.id}': {} } }
+  identity: { type: 'UserAssigned', userAssignedIdentities: { '${ci.id}': {}, '${appKv.id}': {} } }
   properties: {
     managedEnvironmentId: cae.id
     configuration: {
       ingress: { external: true, targetPort: 8000, transport: 'auto' }
       registries: [ { server: acr, identity: ci.id } ]
       secrets: [
-        { name: 'oidc-secret', value: oidcSecret }
-        { name: 'session-secret', value: sessionSecret }
+        { name: 'oidc-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/dp1-oidc-client-secret', identity: appKv.id }
+        { name: 'session-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/dp1-session-secret', identity: appKv.id }
       ]
     }
     template: {
