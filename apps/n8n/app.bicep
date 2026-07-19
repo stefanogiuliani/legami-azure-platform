@@ -15,6 +15,8 @@ param dbUser string = 'n8n'
 param dbPassword string
 @secure()
 param encryptionKey string
+// pin: fissare a digest al collaudo dev (B6/G2 reproducibility)
+param n8nImage string = 'n8nio/n8n:latest'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: caeName
@@ -36,7 +38,7 @@ resource n8n 'Microsoft.App/containerApps@2024-03-01' = {
     template: {
       containers: [ {
         name: 'n8n'
-        image: 'n8nio/n8n:latest'
+        image: n8nImage
         resources: { cpu: json('0.5'), memory: '1Gi' }
         env: [
           { name: 'DB_TYPE', value: 'postgresdb' }

@@ -9,6 +9,8 @@ param namePrefix string
 param env string
 param location string = resourceGroup().location
 param caeName string = '${namePrefix}-${env}-cae'
+// pin: fissare a digest al collaudo dev (B6/G2 reproducibility)
+param caddyImage string = 'caddy:2-alpine'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = { name: caeName }
 
@@ -28,7 +30,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
     template: {
       containers: [ {
         name: 'proxy'
-        image: 'caddy:2-alpine'
+        image: caddyImage
         resources: { cpu: json('0.25'), memory: '0.5Gi' }
         command: [ 'sh', '-c' ]
         args: [ 'printf \'${caddyfile}\' > /etc/caddy/Caddyfile && exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile' ]

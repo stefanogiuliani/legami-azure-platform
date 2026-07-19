@@ -6,6 +6,8 @@ param location string = resourceGroup().location
 param caeName string = '${namePrefix}-${env}-cae'
 @description('Nome del link storage sul CAE (es. parsly-data) — creato dal modulo storage.')
 param storageName string
+// pin: fissare a digest al collaudo dev (B6/G2 reproducibility)
+param alpineImage string = 'alpine:3'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: caeName
@@ -27,7 +29,7 @@ resource job 'Microsoft.App/jobs@2024-03-01' = {
       volumes: [ { name: 'data', storageType: 'AzureFile', storageName: storageName } ]
       containers: [ {
         name: 'filecheck'
-        image: 'alpine:3'
+        image: alpineImage
         resources: { cpu: json('0.25'), memory: '0.5Gi' }
         command: [ '/bin/sh', '-c' ]
         args: [ 'echo "filecheck OK $(date -u)" > /data/filecheck.txt; echo "--- contenuto /data ---"; ls -la /data; echo "--- file ---"; cat /data/filecheck.txt' ]

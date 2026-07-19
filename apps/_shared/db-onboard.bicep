@@ -15,6 +15,8 @@ param rolePassword string
 param adminPassword string
 param adminUser string = 'pgadmin'
 param pgHost string = '${namePrefix}-${env}-pg.postgres.database.azure.com'
+// pin: fissare a digest al collaudo dev (B6/G2 reproducibility)
+param postgresImage string = 'postgres:16-alpine'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: caeName
@@ -39,7 +41,7 @@ resource job 'Microsoft.App/jobs@2024-03-01' = {
     template: {
       containers: [ {
         name: 'psql'
-        image: 'postgres:16-alpine'
+        image: postgresImage
         resources: { cpu: json('0.5'), memory: '1Gi' }
         env: [
           { name: 'PGHOST', value: pgHost }

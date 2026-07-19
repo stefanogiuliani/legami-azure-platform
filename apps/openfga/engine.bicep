@@ -11,6 +11,8 @@ param dbUser string = 'openfga'
 param dbPassword string
 @secure()
 param presharedKey string
+// pin: fissare a digest al collaudo dev (B6/G2 reproducibility)
+param openfgaImage string = 'openfga/openfga:latest'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: caeName
@@ -32,7 +34,7 @@ resource openfga 'Microsoft.App/containerApps@2024-03-01' = {
     template: {
       containers: [ {
         name: 'openfga'
-        image: 'openfga/openfga:latest'
+        image: openfgaImage
         resources: { cpu: json('0.5'), memory: '1Gi' }
         args: [ 'run' ]
         env: [

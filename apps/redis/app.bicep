@@ -6,6 +6,8 @@ param namePrefix string
 param env string
 param location string = resourceGroup().location
 param caeName string = '${namePrefix}-${env}-cae'
+// pin: fissare a digest al collaudo dev (B6/G2 reproducibility)
+param redisImage string = 'redis:7-alpine'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: caeName
@@ -29,7 +31,7 @@ resource redis 'Microsoft.App/containerApps@2024-03-01' = {
     template: {
       containers: [ {
         name: 'redis'
-        image: 'redis:7-alpine'
+        image: redisImage
         resources: { cpu: json('0.25'), memory: '0.5Gi' }
         // cache pura: niente persistenza su disco (no RDB, no AOF)
         command: [ 'redis-server', '--save', '', '--appendonly', 'no' ]

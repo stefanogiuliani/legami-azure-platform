@@ -4,6 +4,8 @@ param env string
 param location string = resourceGroup().location
 param caeName string = '${namePrefix}-${env}-cae'
 param rebacUrl string = 'http://${namePrefix}-${env}-rebac-authz'
+// pin: fissare a digest al collaudo dev (B6/G2 reproducibility)
+param curlImage string = 'curlimages/curl:latest'
 @secure()
 param adminKey string
 param tupleUser string
@@ -30,7 +32,7 @@ resource job 'Microsoft.App/jobs@2024-03-01' = {
     template: {
       containers: [ {
         name: 'grant'
-        image: 'curlimages/curl:latest'
+        image: curlImage
         resources: { cpu: json('0.25'), memory: '0.5Gi' }
         env: [
           { name: 'REBAC_URL', value: rebacUrl }
