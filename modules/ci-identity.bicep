@@ -10,12 +10,20 @@ resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   location: location
 }
 
+// SICUREZZA (B1): su prod la CI si assume SOLO tramite il GitHub Environment 'prod' (con reviewer),
+// NON via ref:refs/heads/main — altrimenti qualunque push su main assumerebbe la CI di prod bypassando
+// il gate di approvazione. Su dev resta la FIC ref-based (ambiente sacrificabile).
+var ficName = env == 'prod' ? 'github-env-prod' : 'github-${githubBranch}'
+var ficSubject = env == 'prod'
+  ? 'repo:${githubRepo}:environment:prod'
+  : 'repo:${githubRepo}:ref:refs/heads/${githubBranch}'
+
 resource fic 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
   parent: uami
-  name: 'github-${githubBranch}'
+  name: ficName
   properties: {
     issuer: 'https://token.actions.githubusercontent.com'
-    subject: 'repo:${githubRepo}:ref:refs/heads/${githubBranch}'
+    subject: ficSubject
     audiences: ['api://AzureADTokenExchange']
   }
 }
@@ -30,6 +38,9 @@ resource acrPush 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
+// SICUREZZA (B2): Contributor RG-wide è più del necessario per build+deploy. È accettato QUI perché
+// l'assunzione dell'identità prod è gated dalla FIC environment:prod (B1, sopra). Follow-up hardening:
+// sostituire con un custom role scoped a Microsoft.App/containerApps/* (senza Microsoft.Authorization/*).
 resource contrib 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, uami.id, 'Contributor')
   scope: resourceGroup()
