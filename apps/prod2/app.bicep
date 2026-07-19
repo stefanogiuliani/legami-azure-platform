@@ -10,20 +10,30 @@ param tenantId string
 param caeDefaultDomain string
 param imageTag string = 'latest'
 
+resource ci 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: '${namePrefix}-${env}-ci'
+}
+resource appKv 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: '${namePrefix}-${env}-app-kv'
+}
+
 resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: '${namePrefix}-${env}-prod2'
   location: location
   tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', app: 'prod2' }
-  identity: { type: 'SystemAssigned' }
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${ci.id}': {}, '${appKv.id}': {} }
+  }
   properties: {
     managedEnvironmentId: caeId
     configuration: {
       ingress: { external: ingressPublic, targetPort: 8000, transport: 'auto' }
-      registries: [ { server: acrLoginServer, identity: 'system' } ]
+      registries: [ { server: acrLoginServer, identity: ci.id } ]
       secrets: [
-        { name: 'database-url', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod2-database-url', identity: 'system' }
-        { name: 'session-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod2-session-secret', identity: 'system' }
-        { name: 'oidc-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod2-oidc-client-secret', identity: 'system' }
+        { name: 'database-url', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod2-database-url', identity: appKv.id }
+        { name: 'session-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod2-session-secret', identity: appKv.id }
+        { name: 'oidc-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/prod2-oidc-client-secret', identity: appKv.id }
       ]
     }
     template: {
@@ -49,4 +59,3 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
 }
 
 output appFqdn string = app.properties.configuration.ingress.fqdn
-output appPrincipalId string = app.identity.principalId

@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.44.1.10279",
-      "templateHash": "8647763833097538746"
+      "version": "0.45.15.27210",
+      "templateHash": "8528104234938541886"
     }
   },
   "parameters": {
@@ -38,6 +38,10 @@
     },
     "caeDefaultDomain": {
       "type": "string"
+    },
+    "imageTag": {
+      "type": "string",
+      "defaultValue": "latest"
     }
   },
   "resources": [
@@ -54,7 +58,11 @@
         "app": "prod2"
       },
       "identity": {
-        "type": "SystemAssigned"
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-{1}-ci', parameters('namePrefix'), parameters('env'))))]": {},
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-{1}-app-kv', parameters('namePrefix'), parameters('env'))))]": {}
+        }
       },
       "properties": {
         "managedEnvironmentId": "[parameters('caeId')]",
@@ -67,24 +75,24 @@
           "registries": [
             {
               "server": "[parameters('acrLoginServer')]",
-              "identity": "system"
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-{1}-ci', parameters('namePrefix'), parameters('env')))]"
             }
           ],
           "secrets": [
             {
               "name": "database-url",
               "keyVaultUrl": "[format('https://{0}.vault.azure.net/secrets/prod2-database-url', parameters('keyVaultName'))]",
-              "identity": "system"
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-{1}-app-kv', parameters('namePrefix'), parameters('env')))]"
             },
             {
               "name": "session-secret",
               "keyVaultUrl": "[format('https://{0}.vault.azure.net/secrets/prod2-session-secret', parameters('keyVaultName'))]",
-              "identity": "system"
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-{1}-app-kv', parameters('namePrefix'), parameters('env')))]"
             },
             {
               "name": "oidc-secret",
               "keyVaultUrl": "[format('https://{0}.vault.azure.net/secrets/prod2-oidc-client-secret', parameters('keyVaultName'))]",
-              "identity": "system"
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-{1}-app-kv', parameters('namePrefix'), parameters('env')))]"
             }
           ]
         },
@@ -92,7 +100,7 @@
           "containers": [
             {
               "name": "prod2-warning",
-              "image": "[format('{0}/prod2-warning:latest', parameters('acrLoginServer'))]",
+              "image": "[format('{0}/prod2-warning:{1}', parameters('acrLoginServer'), parameters('imageTag'))]",
               "resources": {
                 "cpu": "[json('0.5')]",
                 "memory": "1Gi"
@@ -141,10 +149,6 @@
     "appFqdn": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.App/containerApps', format('{0}-{1}-prod2', parameters('namePrefix'), parameters('env'))), '2024-03-01').configuration.ingress.fqdn]"
-    },
-    "appPrincipalId": {
-      "type": "string",
-      "value": "[reference(resourceId('Microsoft.App/containerApps', format('{0}-{1}-prod2', parameters('namePrefix'), parameters('env'))), '2024-03-01', 'full').identity.principalId]"
     }
   }
 }

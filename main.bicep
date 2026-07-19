@@ -24,6 +24,10 @@ module kv './modules/keyvault.bicep' = {
   name: 'kv'
   params: { namePrefix: namePrefix, env: env, location: location, purgeProtection: kvPurgeProtection }
 }
+module appKv './modules/app-kv-identity.bicep' = {
+  name: 'appKv'
+  params: { namePrefix: namePrefix, env: env, location: location, kvName: kv.outputs.keyVaultName }
+}
 module acr './modules/registry.bicep' = {
   name: 'acr'
   params: { namePrefix: namePrefix, env: env, location: location }
