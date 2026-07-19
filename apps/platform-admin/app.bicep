@@ -8,20 +8,16 @@ param rebacUrl string = 'http://${namePrefix}-${env}-rebac-authz'
 param entraClientId string
 param entraTenantId string
 param imageTag string = 'latest'
-@secure()
-param entraClientSecret string
-@secure()
-param authSecret string
-@secure()
-param rebacApiKey string
-@secure()
-param serverActionsKey string
+param keyVaultName string = '${namePrefix}-${env}-kv'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: caeName
 }
 resource ci 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: '${namePrefix}-${env}-ci'
+}
+resource appKv 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: '${namePrefix}-${env}-app-kv'
 }
 
 var acr = '${namePrefix}${env}acr.azurecr.io'
@@ -33,7 +29,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
   tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', svc: 'platform-admin' }
   identity: {
     type: 'UserAssigned'
-    userAssignedIdentities: { '${ci.id}': {} }
+    userAssignedIdentities: { '${ci.id}': {}, '${appKv.id}': {} }
   }
   properties: {
     managedEnvironmentId: cae.id
@@ -41,10 +37,10 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
       ingress: { external: true, targetPort: 3000, transport: 'auto' }
       registries: [ { server: acr, identity: ci.id } ]
       secrets: [
-        { name: 'auth-secret', value: authSecret }
-        { name: 'entra-secret', value: entraClientSecret }
-        { name: 'rebac-key', value: rebacApiKey }
-        { name: 'sa-key', value: serverActionsKey }
+        { name: 'auth-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/platform-admin-auth-secret', identity: appKv.id }
+        { name: 'entra-secret', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/platform-admin-entra-client-secret', identity: appKv.id }
+        { name: 'rebac-key', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/pdp-api-key', identity: appKv.id }
+        { name: 'sa-key', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/platform-admin-sa-key', identity: appKv.id }
       ]
     }
     template: {
