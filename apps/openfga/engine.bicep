@@ -4,31 +4,32 @@ param namePrefix string
 param env string
 param location string = resourceGroup().location
 param caeName string = '${namePrefix}-${env}-cae'
-param pgHost string = '${namePrefix}-${env}-pg.postgres.database.azure.com'
-param dbName string = 'openfga'
-param dbUser string = 'openfga'
-@secure()
-param dbPassword string
-@secure()
-param presharedKey string
+param keyVaultName string = '${namePrefix}-${env}-kv'
 // pin: fissare a digest al collaudo dev (B6/G2 reproducibility)
 param openfgaImage string = 'openfga/openfga:latest'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: caeName
 }
+resource appKv 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: '${namePrefix}-${env}-app-kv'
+}
 
 resource openfga 'Microsoft.App/containerApps@2024-03-01' = {
   name: '${namePrefix}-${env}-openfga'
   location: location
   tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', svc: 'openfga' }
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${appKv.id}': {} }
+  }
   properties: {
     managedEnvironmentId: cae.id
     configuration: {
       ingress: { external: false, targetPort: 8080, transport: 'http' }
       secrets: [
-        { name: 'datastore-uri', value: 'postgres://${dbUser}:${dbPassword}@${pgHost}:5432/${dbName}?sslmode=require' }
-        { name: 'preshared-key', value: presharedKey }
+        { name: 'datastore-uri', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/openfga-datastore-uri', identity: appKv.id }
+        { name: 'preshared-key', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/openfga-preshared-key', identity: appKv.id }
       ]
     }
     template: {

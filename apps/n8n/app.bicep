@@ -2,8 +2,7 @@
 // Ingress PUBBLICO (serve per i webhook in ingresso), DB sul Postgres PRIVATO
 // (db 'n8n' creato dal job di onboarding). La N8N_ENCRYPTION_KEY è il segreto
 // critico: cifra le credenziali salvate — va preservata tra i redeploy.
-// In palestra i segreti sono inline (Container App secret store); per il prod
-// di Legami la encryption-key va in Key Vault (pattern keyVaultUrl, vedi prod2).
+// Segreti da Key Vault (pattern keyVaultUrl, vedi prod2) via UAMI app-kv.
 param namePrefix string
 param env string
 param location string = resourceGroup().location
@@ -11,28 +10,32 @@ param caeName string = '${namePrefix}-${env}-cae'
 param pgHost string = '${namePrefix}-${env}-pg.postgres.database.azure.com'
 param dbName string = 'n8n'
 param dbUser string = 'n8n'
-@secure()
-param dbPassword string
-@secure()
-param encryptionKey string
+param keyVaultName string = '${namePrefix}-${env}-kv'
 // pin: fissare a digest al collaudo dev (B6/G2 reproducibility)
 param n8nImage string = 'n8nio/n8n:latest'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: caeName
 }
+resource appKv 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: '${namePrefix}-${env}-app-kv'
+}
 
 resource n8n 'Microsoft.App/containerApps@2024-03-01' = {
   name: '${namePrefix}-${env}-n8n'
   location: location
   tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', svc: 'n8n' }
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${appKv.id}': {} }
+  }
   properties: {
     managedEnvironmentId: cae.id
     configuration: {
       ingress: { external: true, targetPort: 5678, transport: 'auto' }
       secrets: [
-        { name: 'db-password', value: dbPassword }
-        { name: 'encryption-key', value: encryptionKey }
+        { name: 'db-password', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/n8n-db-password', identity: appKv.id }
+        { name: 'encryption-key', keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/n8n-encryption-key', identity: appKv.id }
       ]
     }
     template: {
