@@ -67,6 +67,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
           { name: 'AUTHZ_ENFORCER', value: 'local' }
           { name: 'N8N_TENANT_SLUG', value: n8nTenantSlug }
           { name: 'APP_PUBLIC_URL', value: 'https://${fqdn}' }
+          { name: 'RUN_EMBEDDED_WORKERS', value: 'false' }
         ]
         volumeMounts: [ { volumeName: 'data', mountPath: '/app/data' } ]
       } ]
