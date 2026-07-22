@@ -18,6 +18,8 @@ param rebacUrl string = 'http://${namePrefix}-${env}-rebac-authz'
 param n8nTenantSlug string = 'legami'
 @description('Nome del link Azure Files sul CAE per i PDF/data durevoli di parsly.')
 param dataStorageName string = 'parsly-data'
+@description('Email seedate come app:parsly#admin al primo boot (CSV). Senza almeno una, il primo login non ha grant e resta senza accesso. Vedi BOOTSTRAP_HOST_ADMINS in src/parsly/web/identity/config.py.')
+param bootstrapHostAdmins string = ''
 param keyVaultName string = '${namePrefix}-${env}-kv'
 
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = { name: caeName }
@@ -65,6 +67,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
           { name: 'PDF_STORAGE_ROOT', value: '/app/data/pdfs' }
           { name: 'REBAC_URL', value: rebacUrl }
           { name: 'AUTHZ_ENFORCER', value: 'local' }
+          { name: 'BOOTSTRAP_HOST_ADMINS', value: bootstrapHostAdmins }
           { name: 'N8N_TENANT_SLUG', value: n8nTenantSlug }
           { name: 'APP_PUBLIC_URL', value: 'https://${fqdn}' }
           { name: 'RUN_EMBEDDED_WORKERS', value: 'false' }
