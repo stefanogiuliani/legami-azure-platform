@@ -27,9 +27,10 @@ resource appKv 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' exi
 }
 
 resource job 'Microsoft.App/jobs@2024-03-01' = {
-  name: '${namePrefix}-${env}-platform-admin-registry-schema'
+  // Nome accorciato: 'legami-dev-platform-admin-registry-schema' = 41 char > 32 (limite Container Apps Job).
+  name: '${namePrefix}-${env}-paregistry-schema'
   location: location
-  tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', job: 'platform-admin-registry-schema' }
+  tags: { project: 'INT101', env: env, owner: 'DNAI', managedBy: 'bicep', job: 'paregistry-schema' }
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: { '${appKv.id}': {} }
